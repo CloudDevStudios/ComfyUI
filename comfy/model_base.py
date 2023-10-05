@@ -47,10 +47,7 @@ class BaseModel(torch.nn.Module):
         self.register_buffer('alphas_cumprod_prev', torch.tensor(alphas_cumprod_prev, dtype=torch.float32))
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
-        if c_concat is not None:
-            xc = torch.cat([x] + c_concat, dim=1)
-        else:
-            xc = x
+        xc = torch.cat([x] + c_concat, dim=1) if c_concat is not None else x
         context = torch.cat(c_crossattn, 1)
         dtype = self.get_dtype()
         xc = xc.to(dtype)
@@ -70,12 +67,12 @@ class BaseModel(torch.nn.Module):
         return None
 
     def load_model_weights(self, sd, unet_prefix=""):
-        to_load = {}
         keys = list(sd.keys())
-        for k in keys:
-            if k.startswith(unet_prefix):
-                to_load[k[len(unet_prefix):]] = sd.pop(k)
-
+        to_load = {
+            k[len(unet_prefix) :]: sd.pop(k)
+            for k in keys
+            if k.startswith(unet_prefix)
+        }
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
             print("unet missing:", m)
@@ -159,13 +156,12 @@ class SDXLRefiner(BaseModel):
         crop_w = kwargs.get("crop_w", 0)
         crop_h = kwargs.get("crop_h", 0)
 
-        if kwargs.get("prompt_type", "") == "negative":
-            aesthetic_score = kwargs.get("aesthetic_score", 2.5)
-        else:
-            aesthetic_score = kwargs.get("aesthetic_score", 6)
-
-        out = []
-        out.append(self.embedder(torch.Tensor([height])))
+        aesthetic_score = (
+            kwargs.get("aesthetic_score", 2.5)
+            if kwargs.get("prompt_type", "") == "negative"
+            else kwargs.get("aesthetic_score", 6)
+        )
+        out = [self.embedder(torch.Tensor([height]))]
         out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
         out.append(self.embedder(torch.Tensor([crop_w])))
@@ -187,8 +183,7 @@ class SDXL(BaseModel):
         target_width = kwargs.get("target_width", width)
         target_height = kwargs.get("target_height", height)
 
-        out = []
-        out.append(self.embedder(torch.Tensor([height])))
+        out = [self.embedder(torch.Tensor([height]))]
         out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
         out.append(self.embedder(torch.Tensor([crop_w])))

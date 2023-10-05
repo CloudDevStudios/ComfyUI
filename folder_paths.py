@@ -1,14 +1,17 @@
 import os
 import time
 
-supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
-
-folder_names_and_paths = {}
+supported_ckpt_extensions = {'.ckpt', '.pth', '.safetensors'}
+supported_pt_extensions = {'.ckpt', '.pt', '.bin', '.pth', '.safetensors'}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
-folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
+folder_names_and_paths = {
+    "checkpoints": (
+        [os.path.join(models_dir, "checkpoints")],
+        supported_ckpt_extensions,
+    )
+}
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
@@ -62,9 +65,7 @@ def get_directory_by_type(type_name):
         return get_output_directory()
     if type_name == "temp":
         return get_temp_directory()
-    if type_name == "input":
-        return get_input_directory()
-    return None
+    return get_input_directory() if type_name == "input" else None
 
 
 # determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
@@ -89,11 +90,7 @@ def get_annotated_filepath(name, default_dir=None):
     name, base_dir = annotated_filepath(name)
 
     if base_dir is None:
-        if default_dir is not None:
-            base_dir = default_dir
-        else:
-            base_dir = get_input_directory()  # fallback path
-
+        base_dir = default_dir if default_dir is not None else get_input_directory()
     return os.path.join(base_dir, name)
 
 
@@ -121,9 +118,12 @@ def recursive_search(directory):
     result = []
     dirs = {directory: os.path.getmtime(directory)}
     for root, subdir, file in os.walk(directory, followlinks=True):
-        for filepath in file:
-            #we os.path,join directory with a blank string to generate a path separator at the end.
-            result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),''))
+        result.extend(
+            os.path.join(root, filepath).replace(
+                os.path.join(directory, ''), ''
+            )
+            for filepath in file
+        )
         for d in subdir:
             path = os.path.join(root, d)
             dirs[path] = os.path.getmtime(path)

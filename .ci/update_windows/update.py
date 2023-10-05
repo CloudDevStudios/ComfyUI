@@ -6,16 +6,17 @@ def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
         if remote.name == remote_name:
             remote.fetch()
-            remote_master_id = repo.lookup_reference('refs/remotes/origin/%s' % (branch)).target
+            remote_master_id = repo.lookup_reference(
+                f'refs/remotes/origin/{branch}'
+            ).target
             merge_result, _ = repo.merge_analysis(remote_master_id)
             # Up to date, do nothing
             if merge_result & pygit2.GIT_MERGE_ANALYSIS_UP_TO_DATE:
                 return
-            # We can just fastforward
             elif merge_result & pygit2.GIT_MERGE_ANALYSIS_FASTFORWARD:
                 repo.checkout_tree(repo.get(remote_master_id))
                 try:
-                    master_ref = repo.lookup_reference('refs/heads/%s' % (branch))
+                    master_ref = repo.lookup_reference(f'refs/heads/{branch}')
                     master_ref.set_target(remote_master_id)
                 except KeyError:
                     repo.create_branch(branch, repo.get(remote_master_id))
@@ -49,8 +50,10 @@ try:
     repo.stash(ident)
 except KeyError:
     print("nothing to stash")
-backup_branch_name = 'backup_branch_{}'.format(datetime.today().strftime('%Y-%m-%d_%H_%M_%S'))
-print("creating backup branch: {}".format(backup_branch_name))
+backup_branch_name = (
+    f"backup_branch_{datetime.now().strftime('%Y-%m-%d_%H_%M_%S')}"
+)
+print(f"creating backup branch: {backup_branch_name}")
 repo.branches.local.create(backup_branch_name, repo.head.peel())
 
 print("checking out master branch")

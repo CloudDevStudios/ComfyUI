@@ -45,11 +45,7 @@ def broadcast_cond(cond, batch, device):
     return copy
 
 def get_models_from_cond(cond, model_type):
-    models = []
-    for c in cond:
-        if model_type in c[1]:
-            models += [c[1][model_type]]
-    return models
+    return [c[1][model_type] for c in cond if model_type in c[1]]
 
 def load_additional_models(positive, negative, dtype):
     """loads additional models in positive and negative conditioning"""

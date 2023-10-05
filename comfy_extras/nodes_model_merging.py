@@ -10,7 +10,7 @@ from comfy.cli_args import args
 
 class ModelMergeSimple:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": { "model1": ("MODEL",),
                               "model2": ("MODEL",),
                               "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
@@ -29,7 +29,7 @@ class ModelMergeSimple:
 
 class CLIPMergeSimple:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": { "clip1": ("CLIP",),
                               "clip2": ("CLIP",),
                               "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
@@ -50,7 +50,7 @@ class CLIPMergeSimple:
 
 class ModelMergeBlocks:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": { "model1": ("MODEL",),
                               "model2": ("MODEL",),
                               "input": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
@@ -85,7 +85,7 @@ class CheckpointSave:
         self.output_dir = folder_paths.get_output_directory()
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP",),
                               "vae": ("VAE",),
@@ -99,10 +99,7 @@ class CheckpointSave:
 
     def save(self, model, clip, vae, filename_prefix, prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        prompt_info = ""
-        if prompt is not None:
-            prompt_info = json.dumps(prompt)
-
+        prompt_info = json.dumps(prompt) if prompt is not None else ""
         metadata = {}
 
         enable_modelspec = True
@@ -116,7 +113,7 @@ class CheckpointSave:
         if enable_modelspec:
             metadata["modelspec.sai_model_spec"] = "1.0.0"
             metadata["modelspec.implementation"] = "sgm"
-            metadata["modelspec.title"] = "{} {}".format(filename, counter)
+            metadata["modelspec.title"] = f"{filename} {counter}"
 
         #TODO:
         # "stable-diffusion-v1", "stable-diffusion-v1-inpainting", "stable-diffusion-v2-512",

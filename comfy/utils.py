@@ -8,23 +8,21 @@ def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
         device = torch.device("cpu")
     if ckpt.lower().endswith(".safetensors"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
-    else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                print("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
-        else:
-            pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
-        if "global_step" in pl_sd:
-            print(f"Global Step: {pl_sd['global_step']}")
-        if "state_dict" in pl_sd:
-            sd = pl_sd["state_dict"]
-        else:
-            sd = pl_sd
-    return sd
+        return safetensors.torch.load_file(ckpt, device=device.type)
+    if safe_load:
+        if 'weights_only' not in torch.load.__code__.co_varnames:
+            print("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
+            safe_load = False
+    pl_sd = (
+        torch.load(ckpt, map_location=device, weights_only=True)
+        if safe_load
+        else torch.load(
+            ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle
+        )
+    )
+    if "global_step" in pl_sd:
+        print(f"Global Step: {pl_sd['global_step']}")
+    return pl_sd["state_dict"] if "state_dict" in pl_sd else pl_sd
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:
@@ -56,19 +54,19 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
     for resblock in range(number):
         for x in resblock_to_replace:
             for y in ["weight", "bias"]:
-                k = "{}transformer.resblocks.{}.{}.{}".format(prefix_from, resblock, x, y)
-                k_to = "{}encoder.layers.{}.{}.{}".format(prefix_to, resblock, resblock_to_replace[x], y)
+                k = f"{prefix_from}transformer.resblocks.{resblock}.{x}.{y}"
+                k_to = f"{prefix_to}encoder.layers.{resblock}.{resblock_to_replace[x]}.{y}"
                 if k in sd:
                     sd[k_to] = sd.pop(k)
 
         for y in ["weight", "bias"]:
-            k_from = "{}transformer.resblocks.{}.attn.in_proj_{}".format(prefix_from, resblock, y)
+            k_from = f"{prefix_from}transformer.resblocks.{resblock}.attn.in_proj_{y}"
             if k_from in sd:
                 weights = sd.pop(k_from)
                 shape_from = weights.shape[0] // 3
                 for x in range(3):
                     p = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"]
-                    k_to = "{}encoder.layers.{}.{}.{}".format(prefix_to, resblock, p[x], y)
+                    k_to = f"{prefix_to}encoder.layers.{resblock}.{p[x]}.{y}"
                     sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
     return sd
 
@@ -167,27 +165,39 @@ def unet_to_diffusers(unet_config):
         n = 1 + (num_res_blocks[x] + 1) * x
         for i in range(num_res_blocks[x]):
             for b in UNET_MAP_RESNET:
-                diffusers_unet_map["down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "input_blocks.{}.0.{}".format(n, b)
+                diffusers_unet_map[
+                    f"down_blocks.{x}.resnets.{i}.{UNET_MAP_RESNET[b]}"
+                ] = f"input_blocks.{n}.0.{b}"
             if transformers_per_layer[x] > 0:
                 for b in UNET_MAP_ATTENTIONS:
-                    diffusers_unet_map["down_blocks.{}.attentions.{}.{}".format(x, i, b)] = "input_blocks.{}.1.{}".format(n, b)
+                    diffusers_unet_map[
+                        f"down_blocks.{x}.attentions.{i}.{b}"
+                    ] = f"input_blocks.{n}.1.{b}"
                 for t in range(transformers_per_layer[x]):
                     for b in TRANSFORMER_BLOCKS:
-                        diffusers_unet_map["down_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
+                        diffusers_unet_map[
+                            f"down_blocks.{x}.attentions.{i}.transformer_blocks.{t}.{b}"
+                        ] = f"input_blocks.{n}.1.transformer_blocks.{t}.{b}"
             n += 1
         for k in ["weight", "bias"]:
-            diffusers_unet_map["down_blocks.{}.downsamplers.0.conv.{}".format(x, k)] = "input_blocks.{}.0.op.{}".format(n, k)
+            diffusers_unet_map[
+                f"down_blocks.{x}.downsamplers.0.conv.{k}"
+            ] = f"input_blocks.{n}.0.op.{k}"
 
     i = 0
     for b in UNET_MAP_ATTENTIONS:
-        diffusers_unet_map["mid_block.attentions.{}.{}".format(i, b)] = "middle_block.1.{}".format(b)
+        diffusers_unet_map[f"mid_block.attentions.{i}.{b}"] = f"middle_block.1.{b}"
     for t in range(transformers_mid):
         for b in TRANSFORMER_BLOCKS:
-            diffusers_unet_map["mid_block.attentions.{}.transformer_blocks.{}.{}".format(i, t, b)] = "middle_block.1.transformer_blocks.{}.{}".format(t, b)
+            diffusers_unet_map[
+                f"mid_block.attentions.{i}.transformer_blocks.{t}.{b}"
+            ] = f"middle_block.1.transformer_blocks.{t}.{b}"
 
     for i, n in enumerate([0, 2]):
         for b in UNET_MAP_RESNET:
-            diffusers_unet_map["mid_block.resnets.{}.{}".format(i, UNET_MAP_RESNET[b])] = "middle_block.{}.{}".format(n, b)
+            diffusers_unet_map[
+                f"mid_block.resnets.{i}.{UNET_MAP_RESNET[b]}"
+            ] = f"middle_block.{n}.{b}"
 
     num_res_blocks = list(reversed(num_res_blocks))
     transformers_per_layer = list(reversed(transformers_per_layer))
@@ -195,20 +205,27 @@ def unet_to_diffusers(unet_config):
         n = (num_res_blocks[x] + 1) * x
         l = num_res_blocks[x] + 1
         for i in range(l):
-            c = 0
             for b in UNET_MAP_RESNET:
-                diffusers_unet_map["up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "output_blocks.{}.0.{}".format(n, b)
-            c += 1
+                diffusers_unet_map[
+                    f"up_blocks.{x}.resnets.{i}.{UNET_MAP_RESNET[b]}"
+                ] = f"output_blocks.{n}.0.{b}"
+            c = 0 + 1
             if transformers_per_layer[x] > 0:
                 c += 1
                 for b in UNET_MAP_ATTENTIONS:
-                    diffusers_unet_map["up_blocks.{}.attentions.{}.{}".format(x, i, b)] = "output_blocks.{}.1.{}".format(n, b)
+                    diffusers_unet_map[
+                        f"up_blocks.{x}.attentions.{i}.{b}"
+                    ] = f"output_blocks.{n}.1.{b}"
                 for t in range(transformers_per_layer[x]):
                     for b in TRANSFORMER_BLOCKS:
-                        diffusers_unet_map["up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
+                        diffusers_unet_map[
+                            f"up_blocks.{x}.attentions.{i}.transformer_blocks.{t}.{b}"
+                        ] = f"output_blocks.{n}.1.transformer_blocks.{t}.{b}"
             if i == l - 1:
                 for k in ["weight", "bias"]:
-                    diffusers_unet_map["up_blocks.{}.upsamplers.0.conv.{}".format(x, k)] = "output_blocks.{}.{}.conv.{}".format(n, c, k)
+                    diffusers_unet_map[
+                        f"up_blocks.{x}.upsamplers.0.conv.{k}"
+                    ] = f"output_blocks.{n}.{c}.conv.{k}"
             n += 1
 
     for k in UNET_MAP_BASIC:
@@ -226,9 +243,7 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
     with open(safetensors_path, "rb") as f:
         header = f.read(8)
         length_of_header = struct.unpack('<Q', header)[0]
-        if length_of_header > max_size:
-            return None
-        return f.read(length_of_header)
+        return None if length_of_header > max_size else f.read(length_of_header)
 
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
@@ -371,8 +386,7 @@ class ProgressBar:
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
             self.total = total
-        if value > self.total:
-            value = self.total
+        value = min(value, self.total)
         self.current = value
         if self.hook is not None:
             self.hook(self.current, self.total, preview)

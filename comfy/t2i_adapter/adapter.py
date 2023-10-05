@@ -76,11 +76,7 @@ class ResnetBlock(nn.Module):
         self.block1 = nn.Conv2d(out_c, out_c, 3, 1, 1)
         self.act = nn.ReLU()
         self.block2 = nn.Conv2d(out_c, out_c, ksize, 1, ps)
-        if sk == False:
-            self.skep = nn.Conv2d(in_c, out_c, ksize, 1, ps)
-        else:
-            self.skep = None
-
+        self.skep = nn.Conv2d(in_c, out_c, ksize, 1, ps) if sk == False else None
         self.down = down
         if self.down == True:
             self.down_opt = Downsample(in_c, use_conv=use_conv)
@@ -94,10 +90,7 @@ class ResnetBlock(nn.Module):
         h = self.block1(x)
         h = self.act(h)
         h = self.block2(h)
-        if self.skep is not None:
-            return h + self.skep(x)
-        else:
-            return h + x
+        return h + self.skep(x) if self.skep is not None else h + x
 
 
 class Adapter(nn.Module):
@@ -220,8 +213,7 @@ class extractor(nn.Module):
         super().__init__()
         self.in_conv = nn.Conv2d(in_c, inter_c, 1, 1, 0)
         self.body = []
-        for _ in range(nums_rb):
-            self.body.append(ResnetBlock_light(inter_c))
+        self.body.extend(ResnetBlock_light(inter_c) for _ in range(nums_rb))
         self.body = nn.Sequential(*self.body)
         self.out_conv = nn.Conv2d(inter_c, out_c, 1, 1, 0)
         self.down = down

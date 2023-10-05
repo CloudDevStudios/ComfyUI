@@ -104,10 +104,10 @@ class PromptServer():
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
-                    
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
-                        print('ws connection closed with exception %s' % ws.exception())
+                        print(f'ws connection closed with exception {ws.exception()}')
             finally:
                 self.sockets.pop(sid, None)
             return ws
@@ -163,9 +163,7 @@ class PromptServer():
                 split = os.path.splitext(filename)
                 filepath = os.path.join(full_output_folder, filename)
 
-                if overwrite is not None and (overwrite == "true" or overwrite == "1"):
-                    pass
-                else:
+                if overwrite is None or overwrite not in ["true", "1"]:
                     i = 1
                     while os.path.exists(filepath):
                         filename = f"{split[0]} ({i}){split[1]}"
@@ -320,7 +318,7 @@ class PromptServer():
             folder_name = request.match_info.get("folder_name", None)
             if folder_name is None:
                 return web.Response(status=404)
-            if not "filename" in request.rel_url.query:
+            if "filename" not in request.rel_url.query:
                 return web.Response(status=404)
 
             filename = request.rel_url.query["filename"]
@@ -334,7 +332,7 @@ class PromptServer():
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
-            if not "__metadata__" in dt:
+            if "__metadata__" not in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
@@ -379,11 +377,9 @@ class PromptServer():
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = ''
             info['category'] = 'sd'
-            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
-                info['output_node'] = True
-            else:
-                info['output_node'] = False
-
+            info['output_node'] = bool(
+                hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True
+            )
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
             return info
@@ -497,11 +493,8 @@ class PromptServer():
         ])
 
     def get_queue_info(self):
-        prompt_info = {}
-        exec_info = {}
-        exec_info['queue_remaining'] = self.prompt_queue.get_tasks_remaining()
-        prompt_info['exec_info'] = exec_info
-        return prompt_info
+        exec_info = {'queue_remaining': self.prompt_queue.get_tasks_remaining()}
+        return {'exec_info': exec_info}
 
     async def send(self, event, data, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
@@ -584,7 +577,7 @@ class PromptServer():
             address = '0.0.0.0'
         if verbose:
             print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address, port))
+            print(f"To see the GUI go to: http://{address}:{port}")
         if call_on_start is not None:
             call_on_start(address, port)
 

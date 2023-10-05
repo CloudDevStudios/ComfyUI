@@ -18,15 +18,14 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
     for x in inputs:
         input_data = inputs[x]
         if isinstance(input_data, list):
-            input_unique_id = input_data[0]
             output_index = input_data[1]
+            input_unique_id = input_data[0]
             if input_unique_id not in outputs:
                 return None
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
-        else:
-            if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
-                input_data_all[x] = [input_data]
+        elif ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
+            input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
         h = valid_inputs["hidden"]
@@ -49,15 +48,15 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     if len(input_data_all) == 0:
         max_len_input = 0
     else:
-        max_len_input = max([len(x) for x in input_data_all.values()])
-     
+        max_len_input = max(len(x) for x in input_data_all.values())
+
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
         for k,v in d.items():
             d_new[k] = v[i if len(v) > i else -1]
         return d_new
-    
+
     results = []
     if input_is_list:
         if allow_interrupt:
@@ -88,9 +87,9 @@ def get_output_data(obj, input_data_all):
                 results.append(r['result'])
         else:
             results.append(r)
-    
+
     output = []
-    if len(results) > 0:
+    if results:
         # check which outputs need concatenating
         output_is_list = [False] * len(results[0])
         if hasattr(obj, "OUTPUT_IS_LIST"):
@@ -103,8 +102,8 @@ def get_output_data(obj, input_data_all):
             else:
                 output.append([o[i] for o in results])
 
-    ui = dict()    
-    if len(uis) > 0:
+    ui = dict()
+    if uis:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
 
@@ -168,14 +167,14 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         exception_type = full_type_name(typ)
         input_data_formatted = {}
         if input_data_all is not None:
-            input_data_formatted = {}
-            for name, inputs in input_data_all.items():
-                input_data_formatted[name] = [format_value(x) for x in inputs]
-
-        output_data_formatted = {}
-        for node_id, node_outputs in outputs.items():
-            output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
-
+            input_data_formatted = {
+                name: [format_value(x) for x in inputs]
+                for name, inputs in input_data_all.items()
+            }
+        output_data_formatted = {
+            node_id: [[format_value(x) for x in l] for l in node_outputs]
+            for node_id, node_outputs in outputs.items()
+        }
         print("!!! Exception during processing !!!")
         print(traceback.format_exc())
 
@@ -238,26 +237,28 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         return True
 
     if not to_delete:
-        if is_changed != is_changed_old:
-            to_delete = True
-        elif unique_id not in old_prompt:
-            to_delete = True
-        elif inputs == old_prompt[unique_id]['inputs']:
+        if (
+            is_changed == is_changed_old
+            and unique_id in old_prompt
+            and inputs == old_prompt[unique_id]['inputs']
+        ):
             for x in inputs:
                 input_data = inputs[x]
 
                 if isinstance(input_data, list):
-                    input_unique_id = input_data[0]
                     output_index = input_data[1]
-                    if input_unique_id in outputs:
-                        to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
-                    else:
-                        to_delete = True
+                    input_unique_id = input_data[0]
+                    to_delete = (
+                        recursive_output_delete_if_changed(
+                            prompt, old_prompt, outputs, input_unique_id
+                        )
+                        if input_unique_id in outputs
+                        else True
+                    )
                     if to_delete:
                         break
         else:
             to_delete = True
-
     if to_delete:
         d = outputs.pop(unique_id)
         del d
@@ -285,21 +286,20 @@ class PromptExecutor:
                 "executed": list(executed),
             }
             self.server.send_sync("execution_interrupted", mes, self.server.client_id)
-        else:
-            if self.server.client_id is not None:
-                mes = {
-                    "prompt_id": prompt_id,
-                    "node_id": node_id,
-                    "node_type": class_type,
-                    "executed": list(executed),
+        elif self.server.client_id is not None:
+            mes = {
+                "prompt_id": prompt_id,
+                "node_id": node_id,
+                "node_type": class_type,
+                "executed": list(executed),
 
-                    "exception_message": error["exception_message"],
-                    "exception_type": error["exception_type"],
-                    "traceback": error["traceback"],
-                    "current_inputs": error["current_inputs"],
-                    "current_outputs": error["current_outputs"],
-                }
-                self.server.send_sync("execution_error", mes, self.server.client_id)
+                "exception_message": error["exception_message"],
+                "exception_type": error["exception_type"],
+                "traceback": error["traceback"],
+                "current_inputs": error["current_inputs"],
+                "current_outputs": error["current_outputs"],
+            }
+            self.server.send_sync("execution_error", mes, self.server.client_id)
 
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
@@ -325,11 +325,7 @@ class PromptExecutor:
             self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
 
         with torch.inference_mode():
-            #delete cached outputs if nodes don't exist for them
-            to_delete = []
-            for o in self.outputs:
-                if o not in prompt:
-                    to_delete += [o]
+            to_delete = [o for o in self.outputs if o not in prompt]
             for o in to_delete:
                 d = self.outputs.pop(o)
                 del d
@@ -358,12 +354,8 @@ class PromptExecutor:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()
             output_node_id = None
-            to_execute = []
-
-            for node_id in list(execute_outputs):
-                to_execute += [(0, node_id)]
-
-            while len(to_execute) > 0:
+            to_execute = [(0, node_id) for node_id in list(execute_outputs)]
+            while to_execute:
                 #always execute the output that depends on the least amount of unexecuted nodes first
                 to_execute = sorted(list(map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
                 output_node_id = to_execute.pop(0)[-1]

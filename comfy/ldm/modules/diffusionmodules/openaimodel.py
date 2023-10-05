@@ -348,11 +348,11 @@ class UNetModel(nn.Module):
             transformer_depth_middle =  transformer_depth[-1]
         if isinstance(num_res_blocks, int):
             self.num_res_blocks = len(channel_mult) * [num_res_blocks]
-        else:
-            if len(num_res_blocks) != len(channel_mult):
-                raise ValueError("provide num_res_blocks either as an int (globally constant) or "
-                                 "as a list/tuple (per-level) with the same length as channel_mult")
+        elif len(num_res_blocks) == len(channel_mult):
             self.num_res_blocks = num_res_blocks
+        else:
+            raise ValueError("provide num_res_blocks either as an int (globally constant) or "
+                             "as a list/tuple (per-level) with the same length as channel_mult")
         if disable_self_attentions is not None:
             # should be a list of booleans, indicating whether to disable self-attention in TransformerBlocks or not
             assert len(disable_self_attentions) == len(channel_mult)
@@ -638,13 +638,7 @@ class UNetModel(nn.Module):
 
             h = th.cat([h, hsp], dim=1)
             del hsp
-            if len(hs) > 0:
-                output_shape = hs[-1].shape
-            else:
-                output_shape = None
+            output_shape = hs[-1].shape if hs else None
             h = forward_timestep_embed(module, h, emb, context, transformer_options, output_shape)
         h = h.type(x.dtype)
-        if self.predict_codebook_ids:
-            return self.id_predictor(h)
-        else:
-            return self.out(h)
+        return self.id_predictor(h) if self.predict_codebook_ids else self.out(h)

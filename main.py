@@ -33,10 +33,7 @@ def execute_prestartup_script():
     if len(node_prestartup_times) > 0:
         print("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
-            if n[2]:
-                import_message = ""
-            else:
-                import_message = " (PRESTARTUP FAILED)"
+            import_message = "" if n[2] else " (PRESTARTUP FAILED)"
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 

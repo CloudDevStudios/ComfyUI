@@ -4,7 +4,7 @@ from nodes import MAX_RESOLUTION
 
 class LatentCompositeMasked:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
             "required": {
                 "destination": ("LATENT",),
@@ -59,7 +59,7 @@ class LatentCompositeMasked:
 
 class MaskToImage:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
                 "required": {
                     "mask": ("MASK",),
@@ -77,7 +77,7 @@ class MaskToImage:
 
 class ImageToMask:
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(cls):
         return {
                 "required": {
                     "image": ("IMAGE",),

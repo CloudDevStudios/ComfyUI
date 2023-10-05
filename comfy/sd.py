@@ -23,7 +23,6 @@ from . import sdxl_clip
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
-    m = set(m)
     unexpected_keys = set(u)
 
     k = list(sd.keys())
@@ -31,7 +30,7 @@ def load_model_weights(model, sd):
         if x not in unexpected_keys:
             w = sd.pop(x)
             del w
-    if len(m) > 0:
+    if m := set(m):
         print("missing", m)
     return model
 
@@ -64,23 +63,23 @@ def load_lora(lora, to_load):
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
-        alpha_name = "{}.alpha".format(x)
+        alpha_name = f"{x}.alpha"
         alpha = None
         if alpha_name in lora.keys():
             alpha = lora[alpha_name].item()
             loaded_keys.add(alpha_name)
 
-        regular_lora = "{}.lora_up.weight".format(x)
-        diffusers_lora = "{}_lora.up.weight".format(x)
+        regular_lora = f"{x}.lora_up.weight"
+        diffusers_lora = f"{x}_lora.up.weight"
         A_name = None
 
         if regular_lora in lora.keys():
             A_name = regular_lora
-            B_name = "{}.lora_down.weight".format(x)
-            mid_name = "{}.lora_mid.weight".format(x)
+            B_name = f"{x}.lora_down.weight"
+            mid_name = f"{x}.lora_mid.weight"
         elif diffusers_lora in lora.keys():
             A_name = diffusers_lora
-            B_name = "{}_lora.down.weight".format(x)
+            B_name = f"{x}_lora.down.weight"
             mid_name = None
 
         if A_name is not None:
@@ -94,12 +93,12 @@ def load_lora(lora, to_load):
 
 
         ######## loha
-        hada_w1_a_name = "{}.hada_w1_a".format(x)
-        hada_w1_b_name = "{}.hada_w1_b".format(x)
-        hada_w2_a_name = "{}.hada_w2_a".format(x)
-        hada_w2_b_name = "{}.hada_w2_b".format(x)
-        hada_t1_name = "{}.hada_t1".format(x)
-        hada_t2_name = "{}.hada_t2".format(x)
+        hada_w1_a_name = f"{x}.hada_w1_a"
+        hada_w1_b_name = f"{x}.hada_w1_b"
+        hada_w2_a_name = f"{x}.hada_w2_a"
+        hada_w2_b_name = f"{x}.hada_w2_b"
+        hada_t1_name = f"{x}.hada_t1"
+        hada_t2_name = f"{x}.hada_t2"
         if hada_w1_a_name in lora.keys():
             hada_t1 = None
             hada_t2 = None
@@ -117,13 +116,13 @@ def load_lora(lora, to_load):
 
 
         ######## lokr
-        lokr_w1_name = "{}.lokr_w1".format(x)
-        lokr_w2_name = "{}.lokr_w2".format(x)
-        lokr_w1_a_name = "{}.lokr_w1_a".format(x)
-        lokr_w1_b_name = "{}.lokr_w1_b".format(x)
-        lokr_t2_name = "{}.lokr_t2".format(x)
-        lokr_w2_a_name = "{}.lokr_w2_a".format(x)
-        lokr_w2_b_name = "{}.lokr_w2_b".format(x)
+        lokr_w1_name = f"{x}.lokr_w1"
+        lokr_w2_name = f"{x}.lokr_w2"
+        lokr_w1_a_name = f"{x}.lokr_w1_a"
+        lokr_w1_b_name = f"{x}.lokr_w1_b"
+        lokr_t2_name = f"{x}.lokr_t2"
+        lokr_w2_a_name = f"{x}.lokr_w2_a"
+        lokr_w2_b_name = f"{x}.lokr_w2_b"
 
         lokr_w1 = None
         if lokr_w1_name in lora.keys():
@@ -175,25 +174,25 @@ def model_lora_keys_clip(model, key_map={}):
     clip_l_present = False
     for b in range(32):
         for c in LORA_CLIP_MAP:
-            k = "transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            k = f"transformer.text_model.encoder.layers.{b}.{c}.weight"
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
-                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])
+                lora_key = f"lora_te1_text_model_encoder_layers_{b}_{LORA_CLIP_MAP[c]}"
                 key_map[lora_key] = k
 
-            k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            k = f"clip_l.transformer.text_model.encoder.layers.{b}.{c}.weight"
             if k in sdk:
-                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                lora_key = f"lora_te1_text_model_encoder_layers_{b}_{LORA_CLIP_MAP[c]}"
                 key_map[lora_key] = k
                 clip_l_present = True
 
-            k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            k = f"clip_g.transformer.text_model.encoder.layers.{b}.{c}.weight"
             if k in sdk:
                 if clip_l_present:
-                    lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                    lora_key = f"lora_te2_text_model_encoder_layers_{b}_{LORA_CLIP_MAP[c]}"
                 else:
-                    lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
+                    lora_key = f"lora_te_text_model_encoder_layers_{b}_{LORA_CLIP_MAP[c]}"
                 key_map[lora_key] = k
 
     return key_map
@@ -204,18 +203,20 @@ def model_lora_keys_unet(model, key_map={}):
     for k in sdk:
         if k.startswith("diffusion_model.") and k.endswith(".weight"):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
-            key_map["lora_unet_{}".format(key_lora)] = k
+            key_map[f"lora_unet_{key_lora}"] = k
 
     diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
             key_lora = k[:-len(".weight")].replace(".", "_")
-            key_map["lora_unet_{}".format(key_lora)] = "diffusion_model.{}".format(diffusers_keys[k])
+            key_map[f"lora_unet_{key_lora}"] = f"diffusion_model.{diffusers_keys[k]}"
 
-            diffusers_lora_key = "unet.{}".format(k[:-len(".weight")].replace(".to_", ".processor.to_"))
+            diffusers_lora_key = (
+                f'unet.{k[:-len(".weight")].replace(".to_", ".processor.to_")}'
+            )
             if diffusers_lora_key.endswith(".to_out.0"):
                 diffusers_lora_key = diffusers_lora_key[:-2]
-            key_map[diffusers_lora_key] = "diffusion_model.{}".format(diffusers_keys[k])
+            key_map[diffusers_lora_key] = f"diffusion_model.{diffusers_keys[k]}"
     return key_map
 
 def set_attr(obj, attr, value):
@@ -251,10 +252,7 @@ class ModelPatcher:
 
     def clone(self):
         n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size)
-        n.patches = {}
-        for k in self.patches:
-            n.patches[k] = self.patches[k][:]
-
+        n.patches = {k: self.patches[k][:] for k in self.patches}
         n.model_options = copy.deepcopy(self.model_options)
         n.model_keys = self.model_keys
         return n

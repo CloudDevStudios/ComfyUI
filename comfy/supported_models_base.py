@@ -11,7 +11,12 @@ def state_dict_key_replace(state_dict, keys_to_replace):
 
 def state_dict_prefix_replace(state_dict, replace_prefix):
     for rp in replace_prefix:
-        replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
+        replace = list(
+            map(
+                lambda a: (a, f"{replace_prefix[rp]}{a[len(rp):]}"),
+                filter(lambda a: a.startswith(rp), state_dict.keys()),
+            )
+        )
         for x in replace:
             state_dict[x[1]] = state_dict.pop(x[0])
     return state_dict
@@ -35,11 +40,8 @@ class BASE:
     noise_aug_config = None
 
     @classmethod
-    def matches(s, unet_config):
-        for k in s.unet_config:
-            if s.unet_config[k] != unet_config[k]:
-                return False
-        return True
+    def matches(cls, unet_config):
+        return all(cls.unet_config[k] == unet_config[k] for k in cls.unet_config)
 
     def model_type(self, state_dict, prefix=""):
         return model_base.ModelType.EPS

@@ -63,25 +63,34 @@ def load_diffusers(model_path, fp16=True, output_vae=True, output_clip=True, emb
 
     # Convert the UNet model
     unet_state_dict = diffusers_convert.convert_unet_state_dict(unet_state_dict)
-    unet_state_dict = {"model.diffusion_model." + k: v for k, v in unet_state_dict.items()}
+    unet_state_dict = {
+        f"model.diffusion_model.{k}": v for k, v in unet_state_dict.items()
+    }
 
     # Convert the VAE model
     vae_state_dict = diffusers_convert.convert_vae_state_dict(vae_state_dict)
-    vae_state_dict = {"first_stage_model." + k: v for k, v in vae_state_dict.items()}
+    vae_state_dict = {
+        f"first_stage_model.{k}": v for k, v in vae_state_dict.items()
+    }
 
     # Easiest way to identify v2.0 model seems to be that the text encoder (OpenCLIP) is deeper
     is_v20_model = "text_model.encoder.layers.22.layer_norm2.bias" in text_enc_dict
 
     if is_v20_model:
         # Need to add the tag 'transformer' in advance so we can knock it out from the final layer-norm
-        text_enc_dict = {"transformer." + k: v for k, v in text_enc_dict.items()}
+        text_enc_dict = {f"transformer.{k}": v for k, v in text_enc_dict.items()}
         text_enc_dict = diffusers_convert.convert_text_enc_state_dict_v20(text_enc_dict)
-        text_enc_dict = {"cond_stage_model.model." + k: v for k, v in text_enc_dict.items()}
+        text_enc_dict = {
+            f"cond_stage_model.model.{k}": v for k, v in text_enc_dict.items()
+        }
     else:
         text_enc_dict = diffusers_convert.convert_text_enc_state_dict(text_enc_dict)
-        text_enc_dict = {"cond_stage_model.transformer." + k: v for k, v in text_enc_dict.items()}
+        text_enc_dict = {
+            f"cond_stage_model.transformer.{k}": v
+            for k, v in text_enc_dict.items()
+        }
 
     # Put together new checkpoint
-    sd = {**unet_state_dict, **vae_state_dict, **text_enc_dict}
+    sd = unet_state_dict | vae_state_dict | text_enc_dict
 
     return load_checkpoint(embedding_directory=embedding_directory, state_dict=sd, config=config)
